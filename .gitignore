@@ -1,6 +1,7 @@
 node_modules/
 dist/
-# Source asset zips (KayKit packs): the curated files live in public/assets
-Assets/
+# Source asset zips (KayKit packs) in the root folder only; the curated files in public/assets are tracked.
+# (Anchored with a leading slash: Windows matches ignore patterns case-insensitively.)
+/Assets/
 .DS_Store
 Thumbs.db
