@@ -14,6 +14,10 @@ import { Tower } from './tower/tower.js';
 import { Particles } from './fx/particles.js';
 import { Hud, formatCash } from './ui/hud.js';
 import { Floaters } from './ui/floaters.js';
+import { Arena } from './levels/arena.js';
+import { LevelFlow } from './levels/flow.js';
+import { LevelMap } from './ui/levelMap.js';
+import { LEVEL_COUNT, levelFor } from './levels/levels.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -58,7 +62,8 @@ async function boot() {
   const floaters = new Floaters($('floaters'));
   const input = new Input($('touch'), $('stick'));
 
-  let mode = 'title'; // title | farm | tower
+  // title | map | farm (garden) | tower (endless) | arena (farm level) | tlevel (tower level)
+  let mode = 'title';
   let paused = false; // player pressed pause
   let sysPaused = false; // platform paused us (tab hidden, ad, YouTube pause)
   let lastInterstitial = -Infinity;
@@ -92,9 +97,78 @@ async function boot() {
       void el.offsetWidth;
       el.classList.add('on');
     },
-    onGameOver: (height) => towerOver(height),
+    // Endless runs end with the old result card; tower levels go through the level flow.
+    onGameOver: (height) => (mode === 'tlevel' ? flow.fail() : towerOver(height)),
+    onWin: (r) => flow.onTowerWin(r),
+    onHeart: () => flow.onHeartLost(),
+    onGold: () => flow.onGold(),
   });
   tower.particles = new Particles(tower.scene);
+
+  // ---------------------------------------------------------------- levels
+  const arena = new Arena({
+    assets, sfx, input, lowFx,
+    onWin: (r) => flow.onFarmWin(r),
+    onFail: () => flow.fail(),
+  });
+
+  /** Switch the renderer and HUD to a level's scene. */
+  function setMode(m) {
+    showZone(null);
+    mode = m;
+    $('title').hidden = true;
+    levelMap.hide();
+    hud.show(false);
+    $('tower-over').hidden = true;
+    if (m === 'arena') {
+      $('tower-hud').hidden = true;
+      input.setJoystick(true);
+    } else {
+      $('tower-hud').hidden = false;
+      $('btn-tower-exit').hidden = true; // the level HUD has its own exit
+      $('tower-hint').hidden = true; // the level banner already says "Tap to start"
+      $('tower-score').textContent = '0';
+      input.setJoystick(false);
+      tower.particles.clear();
+    }
+  }
+
+  function openMap() {
+    if (flow.active) flow.stop();
+    showZone(null);
+    mode = 'map';
+    $('title').hidden = true;
+    $('tower-hud').hidden = true;
+    $('tower-over').hidden = true;
+    hud.show(false);
+    input.setJoystick(false);
+    platform.gameplayStop();
+    levelMap.show(state);
+  }
+
+  function showTitle() {
+    mode = 'title';
+    levelMap.hide();
+    hud.show(false);
+    $('title').hidden = false;
+  }
+
+  const flow = new LevelFlow({
+    state, save, platform, sfx, hud, arena, tower, setMode, openMap,
+    rewarded: (id) => rewarded(id),
+    maybeInterstitial: (eligible) => maybeInterstitial(eligible),
+  });
+
+  const levelMap = new LevelMap({
+    onPick: (n) => { sfx.unlock(); sfx.startMusic(); flow.start(n); },
+    onBack: () => showTitle(),
+    onGarden: () => { levelMap.hide(); startFarm(); },
+  });
+
+  function startLevel(n) {
+    $('title').hidden = true;
+    flow.start(n);
+  }
 
   function enterTower() {
     showZone(null);
@@ -103,6 +177,7 @@ async function boot() {
     hud.show(false);
     $('title').hidden = true;
     $('tower-hud').hidden = false;
+    $('btn-tower-exit').hidden = false;
     $('tower-over').hidden = true;
     $('tower-hint').hidden = false;
     run.doubled = false;
@@ -143,9 +218,9 @@ async function boot() {
     return reward;
   }
 
-  async function maybeInterstitial() {
+  async function maybeInterstitial(eligible = state.towerRuns >= 2) {
     const now = performance.now() / 1000;
-    if (state.towerRuns < 2 || now - lastInterstitial < AD_COOLDOWN_SECONDS) return;
+    if (!eligible || now - lastInterstitial < AD_COOLDOWN_SECONDS) return;
     lastInterstitial = now;
     await withAd(() => platform.showInterstitial());
   }
@@ -172,7 +247,9 @@ async function boot() {
       return false;
     } finally {
       sfx.setPaused(false);
-      if (mode === 'farm' || (mode === 'tower' && tower.state === 'playing')) platform.gameplayStart();
+      const playing = mode === 'farm' || (mode === 'arena' && arena.state === 'playing')
+        || ((mode === 'tower' || mode === 'tlevel') && tower.state === 'playing');
+      if (playing) platform.gameplayStart();
     }
   }
 
@@ -218,7 +295,11 @@ async function boot() {
   input.onTap(() => {
     sfx.unlock();
     sfx.startMusic();
-    if (mode === 'tower' && $('tower-over').hidden && !paused) tower.tap();
+    if (paused) return;
+    // The first tap of a level only dismisses its banner (it must not also drop a slab).
+    if (flow.bannerOpen) { flow.dismissBanner(); return; }
+    if (mode === 'tower' && $('tower-over').hidden) tower.tap();
+    if (mode === 'tlevel' && $('lv-fail').hidden && $('lv-win').hidden) tower.tap();
   });
 
   // ---------------------------------------------------------------- zones: upgrade stand & tower stand
@@ -269,11 +350,12 @@ async function boot() {
     platform.gameplayStart();
     if (isNewPlayer) hud.toast('Drag anywhere to walk. Mow the tulips!', 3.5);
   }
-  $('btn-play').addEventListener('click', () => { sfx.unlock(); sfx.startMusic(); startFarm(); });
-  $('btn-play-tower').addEventListener('click', () => { sfx.unlock(); sfx.startMusic(); enterTower(); });
+  $('btn-play').addEventListener('click', () => { sfx.unlock(); sfx.startMusic(); openMap(); });
+  $('btn-garden').addEventListener('click', () => { sfx.unlock(); sfx.startMusic(); startFarm(); });
+  $('btn-levels').addEventListener('click', () => openMap());
 
   function setPaused(p) {
-    if (mode === 'title') return;
+    if (mode === 'title' || mode === 'map') return;
     paused = p;
     $('pause').hidden = !p;
     sfx.setPaused(p || sysPaused);
@@ -320,6 +402,7 @@ async function boot() {
     renderer.setSize(w, h, false);
     farm.rig.resize(w / h);
     tower.resize(w / h);
+    arena.resize(w / h);
   }
   window.addEventListener('resize', resize);
   resize();
@@ -354,12 +437,20 @@ async function boot() {
   function tick(dt) {
     input.update();
     hud.update(dt);
-    if (mode === 'tower') {
+    if (mode === 'tower' || mode === 'tlevel') {
       tower.update(dt);
       tower.particles.update(dt);
       towerTweens.update(dt);
+      if (mode === 'tlevel') flow.update(dt);
       renderer.render(tower.scene, tower.camera);
       floaters.update(dt, tower.camera, window.innerWidth, window.innerHeight);
+    } else if (mode === 'arena') {
+      arena.update(dt, true);
+      flow.update(dt);
+      renderer.render(arena.scene, arena.camera);
+      floaters.update(dt, arena.camera, window.innerWidth, window.innerHeight);
+    } else if (mode === 'map') {
+      // The map is a DOM screen over the canvas: nothing to render.
     } else {
       farm.update(dt, mode === 'farm');
       hud.setBoost(farm.boostRemaining());
@@ -378,7 +469,7 @@ async function boot() {
   if (platform.name === 'local') {
     // step(seconds) advances the game at 60 fps even when the tab is in the background.
     const step = (seconds) => { for (let i = 0; i < Math.round(seconds * 60); i++) tick(1 / 60); };
-    window.__bloom = { farm, tower, state, input, startFarm, enterTower, exitTower, step, THREE };
+    window.__bloom = { farm, tower, arena, flow, levelMap, state, input, startFarm, enterTower, exitTower, openMap, startLevel, levelFor, LEVEL_COUNT, step, THREE };
   }
 
   // First frame behind the title, then hand control to the player.
@@ -388,6 +479,10 @@ async function boot() {
   hud.setCash(state.cash, true);
   requestAnimationFrame(frame);
   platform.gameReady();
+
+  // ?level=N opens a level directly (dev builds only).
+  const jump = Number(params.get('level'));
+  if (platform.name === 'local' && Number.isInteger(jump) && jump >= 1) startLevel(jump);
 
   // Safety net: write any pending change every 30 s.
   setInterval(() => save(), 30000);

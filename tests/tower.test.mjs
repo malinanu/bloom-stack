@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dropLayer, slidePosition, slideSpeed, PERFECT_TOLERANCE, GROW_AFTER_PERFECTS, GROW_AMOUNT, BASE_SIZE } from '../public/src/tower/stackMath.js';
+import { dropLayer, slidePosition, slideSpeed, windFactor, PERFECT_TOLERANCE, GROW_AFTER_PERFECTS, GROW_AMOUNT, BASE_SIZE } from '../public/src/tower/stackMath.js';
 
 const top = { x: 0, z: 0, w: 3, d: 3 };
 const close = (a, b) => Math.abs(a - b) < 1e-9;
@@ -56,7 +56,39 @@ test('the slab ping-pongs between -range and +range', () => {
   assert.equal(slidePosition(1, 4, 0), -3);
 });
 
-test('speed rises with height but is capped', () => {
+test('speed rises with height but is capped, and levels can scale it', () => {
   assert.ok(slideSpeed(20) > slideSpeed(0));
   assert.equal(slideSpeed(1000), 7);
+  assert.equal(slideSpeed(1000, 1.5), 10.5);
+});
+
+test('a smaller (shrunk) slab keeps its own size and slices against the layer below', () => {
+  const small = { x: 0.8, z: 0, w: 2, d: 2.9 };
+  const r = dropLayer(top, small, 'x');
+  // moving spans −0.2..1.8, top spans −1.5..1.5 → kept −0.2..1.5, cut 1.5..1.8
+  assert.equal(r.result, 'cut');
+  assert.ok(close(r.layer.w, 1.7));
+  assert.ok(close(r.layer.x, 0.65));
+  assert.ok(close(r.cut.w, 0.3));
+  assert.ok(close(r.cut.x, 1.65));
+  assert.equal(r.layer.d, 2.9);
+  // fully inside but off-centre: nothing hangs over, so nothing falls
+  const inside = dropLayer(top, { x: 0.5, z: 0, w: 1.5, d: 3 }, 'x');
+  assert.equal(inside.result, 'cut');
+  assert.equal(inside.cut, null);
+  assert.ok(close(inside.layer.w, 1.5));
+});
+
+test('a perfect drop snaps a smaller slab onto the centre and growth respects maxSize', () => {
+  const r = dropLayer(top, { x: 0.05, z: 0, w: 2.2, d: 2.2 }, 'x', 5, { maxSize: 2.3 });
+  assert.equal(r.result, 'perfect');
+  assert.equal(r.layer.x, 0);
+  assert.ok(close(r.layer.w, 2.3));
+});
+
+test('wind keeps the speed within the gust range', () => {
+  for (let t = 0; t < 20; t += 0.1) {
+    const f = windFactor(t, 0.5);
+    assert.ok(f >= 0.5 - 1e-9 && f <= 1.5 + 1e-9);
+  }
 });

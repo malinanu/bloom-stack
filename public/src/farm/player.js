@@ -7,9 +7,15 @@ import { damp } from '../core/tween.js';
 const RADIUS = 0.38;
 
 export class Player {
-  constructor(scene, assets) {
+  /**
+   * @param {{ bounds?: {minX:number,maxX:number,minZ:number,maxZ:number}, colliders?: number[][], start?: {x:number,z:number} }} opts
+   *   defaults are the garden's layout; level arenas pass their own
+   */
+  constructor(scene, assets, { bounds = BOUNDS, colliders = COLLIDERS, start = PLAYER_START } = {}) {
+    this.bounds = bounds;
+    this.colliders = colliders;
     this.root = new THREE.Group();
-    this.root.position.set(PLAYER_START.x, 0, PLAYER_START.z);
+    this.root.position.set(start.x, 0, start.z);
     this.char = assets.character('rogue', { hide: /Cape/ });
     this.root.add(this.char.model);
     scene.add(this.root);
@@ -94,10 +100,20 @@ export class Player {
     this.scythe.rotation.x = THREE.MathUtils.lerp(this.scythe.rotation.x, Math.sin(this.swingT) * amt, damp(20, dt));
   }
 
+  /** Put the gardener somewhere new (level start), standing still and facing the field. */
+  teleport(x, z, yaw = Math.PI) {
+    this.root.position.set(x, 0, z);
+    this.vel.set(0, 0, 0);
+    this.yaw = yaw;
+    this.root.rotation.y = yaw;
+    this.locked = false;
+  }
+
   collide(p) {
-    p.x = THREE.MathUtils.clamp(p.x, BOUNDS.minX, BOUNDS.maxX);
-    p.z = THREE.MathUtils.clamp(p.z, BOUNDS.minZ, BOUNDS.maxZ);
-    for (const [x0, z0, x1, z1] of COLLIDERS) {
+    const b = this.bounds;
+    p.x = THREE.MathUtils.clamp(p.x, b.minX, b.maxX);
+    p.z = THREE.MathUtils.clamp(p.z, b.minZ, b.maxZ);
+    for (const [x0, z0, x1, z1] of this.colliders) {
       const cx = THREE.MathUtils.clamp(p.x, x0, x1);
       const cz = THREE.MathUtils.clamp(p.z, z0, z1);
       const dx = p.x - cx;

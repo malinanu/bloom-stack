@@ -27,24 +27,47 @@ function rand(seed) {
   return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
 }
 
+/** Sky light + a shadow-casting sun. Shared by the garden and the level arena. Returns the sun. */
+export function addLights(scene, lowFx = false) {
+  scene.background = new THREE.Color(GRASS);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x88b04b, 1.5));
+  const sun = new THREE.DirectionalLight(0xfff4dc, 2.1);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(lowFx ? 1024 : 2048, lowFx ? 1024 : 2048);
+  const sc = sun.shadow.camera;
+  sc.left = -20; sc.right = 20; sc.top = 20; sc.bottom = -20; sc.near = 1; sc.far = 70;
+  sun.shadow.bias = -0.0008;
+  sun.shadow.normalBias = 0.02;
+  scene.add(sun, sun.target);
+  return sun;
+}
+
+/** Big grass plane with a little colour variation. */
+export function makeGround() {
+  const geo = new THREE.PlaneGeometry(160, 160, 64, 64).rotateX(-Math.PI / 2);
+  const colors = new Float32Array(geo.attributes.position.count * 3);
+  const c = new THREE.Color();
+  const r = rand(7);
+  for (let i = 0; i < geo.attributes.position.count; i++) {
+    c.setHex(GRASS).offsetHSL((r() - 0.5) * 0.02, 0, (r() - 0.5) * 0.04);
+    colors.set([c.r, c.g, c.b], i * 3);
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const ground = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+  ground.receiveShadow = true;
+  return ground;
+}
+
+/** Keep a sun's shadow camera centred on what the player sees. */
+export function followSun(sun, target) {
+  sun.position.set(target.x - 9, 22, target.z + 12);
+  sun.target.position.set(target.x, 0, target.z);
+}
+
 export class World {
   constructor(scene, assets, { lowFx = false } = {}) {
     this.scene = scene;
-    scene.background = new THREE.Color(GRASS);
-
-    // Lights
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x88b04b, 1.5);
-    scene.add(hemi);
-    const sun = new THREE.DirectionalLight(0xfff4dc, 2.1);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(lowFx ? 1024 : 2048, lowFx ? 1024 : 2048);
-    const sc = sun.shadow.camera;
-    sc.left = -20; sc.right = 20; sc.top = 20; sc.bottom = -20; sc.near = 1; sc.far = 70;
-    sun.shadow.bias = -0.0008;
-    sun.shadow.normalBias = 0.02;
-    scene.add(sun, sun.target);
-    this.sun = sun;
-
+    this.sun = addLights(scene, lowFx);
     this.buildGround();
     this.buildPaths();
     this.buildHedges(assets);
@@ -52,18 +75,7 @@ export class World {
   }
 
   buildGround() {
-    const geo = new THREE.PlaneGeometry(160, 160, 64, 64).rotateX(-Math.PI / 2);
-    const colors = new Float32Array(geo.attributes.position.count * 3);
-    const c = new THREE.Color();
-    const r = rand(7);
-    for (let i = 0; i < geo.attributes.position.count; i++) {
-      c.setHex(GRASS).offsetHSL((r() - 0.5) * 0.02, 0, (r() - 0.5) * 0.04);
-      colors.set([c.r, c.g, c.b], i * 3);
-    }
-    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    const ground = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
-    ground.receiveShadow = true;
-    this.scene.add(ground);
+    this.scene.add(makeGround());
 
     // Slightly darker beds under the flower fields.
     const bedMat = new THREE.MeshLambertMaterial({ color: 0x79b84a });
@@ -159,15 +171,15 @@ export class World {
 
   /** Keep the shadow camera centred on what the player sees. */
   update(target) {
-    this.sun.position.set(target.x - 9, 22, target.z + 12);
-    this.sun.target.position.set(target.x, 0, target.z);
+    followSun(this.sun, target);
   }
 }
 
 /** Angled top-down follow camera (like the ad) that frames the same play area at any aspect ratio. */
 export class CameraRig {
-  constructor(camera) {
+  constructor(camera, bounds = BOUNDS) {
     this.camera = camera;
+    this.bounds = bounds;
     this.target = new THREE.Vector3();
     this.focus = new THREE.Vector3();
     this.pitch = THREE.MathUtils.degToRad(48);
@@ -198,8 +210,11 @@ export class CameraRig {
     this.target.copy(pos);
     if (lead) this.target.add(lead);
     this.focus.lerp(this.target, damp(5, dt));
-    this.focus.x = THREE.MathUtils.clamp(this.focus.x, BOUNDS.minX + 4, BOUNDS.maxX - 4);
-    this.focus.z = THREE.MathUtils.clamp(this.focus.z, BOUNDS.minZ + 3, BOUNDS.maxZ - 2);
+    // Keep the view inside the play area (a small arena just centres on its axis).
+    const b = this.bounds;
+    const fit = (v, lo, hi) => (lo > hi ? (lo + hi) / 2 : THREE.MathUtils.clamp(v, lo, hi));
+    this.focus.x = fit(this.focus.x, b.minX + 4, b.maxX - 4);
+    this.focus.z = fit(this.focus.z, b.minZ + 3, b.maxZ - 2);
     this.apply(dt);
   }
 

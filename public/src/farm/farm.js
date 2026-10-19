@@ -1,13 +1,13 @@
 // Farm mode: wires the world, flowers, gardener, stack, stations and unlock pads into the idle-arcade loop.
 import * as THREE from 'three';
 import { World, CameraRig } from './world.js';
-import { Flowers } from './flowers.js';
+import { Flowers, slotsFromFields } from './flowers.js';
 import { Player } from './player.js';
 import { Stack } from './stack.js';
 import { Stations } from './stations.js';
 import { Unlocks } from './unlocks.js';
 import { Guide } from './guide.js';
-import { STATION, COUNTER, UPGRADE_STAND, TOWER_STAND } from './layout.js';
+import { FIELDS, STATION, COUNTER, UPGRADE_STAND, TOWER_STAND } from './layout.js';
 import { bunchGeometry, bouquetGeometry, makeFlowerMaterial, meshParts, signBoard, groundMat } from './models.js';
 import { TYPE_COLOR } from './flowers.js';
 import { Particles, PALETTES } from '../fx/particles.js';
@@ -51,7 +51,7 @@ export class Farm {
     const coin = meshParts(assets.gltf.coin.scene);
     this.flyers.addKind('coin', coin.geometry, coin.material, { max: 90, scale: 0.34 });
 
-    this.flowers = new Flowers(this.scene, state.unlocked);
+    this.flowers = new Flowers(this.scene, slotsFromFields(FIELDS, state.unlocked));
     this.player = new Player(this.scene, assets);
     this.stack = new Stack(this.scene);
     this.stack.load(state.stack);

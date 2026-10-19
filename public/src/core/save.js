@@ -4,6 +4,7 @@ import { FLOWER_TYPES, UNLOCKS, UPGRADES, UPGRADE_KEYS } from './economy.js';
 
 export const SAVE_VERSION = 1;
 const MAX_STACK = 200;
+const MAX_LEVELS = 10000;
 
 const perType = (v = 0) => Object.fromEntries(FLOWER_TYPES.map((t) => [t, v]));
 
@@ -20,6 +21,9 @@ export function defaultSave() {
     upgrades: Object.fromEntries(UPGRADE_KEYS.map((k) => [k, 0])),
     towerBest: 0,
     towerRuns: 0,
+    level: 1, // highest level unlocked
+    stars: '', // one digit per level: '0'–'3'
+    levelWins: 0, // levels won (paces interstitial ads)
     muted: false,
     t: 0,
   };
@@ -53,6 +57,11 @@ export function migrate(raw) {
   }
   d.towerBest = num(raw.towerBest);
   d.towerRuns = num(raw.towerRuns);
+  if (typeof raw.stars === 'string') d.stars = raw.stars.replace(/[^0-3]/g, '0').slice(0, MAX_LEVELS);
+  // The unlocked level is at least one past the last level with stars.
+  const lastWon = d.stars.replace(/0+$/, '').length;
+  d.level = Math.min(MAX_LEVELS, Math.max(1, num(raw.level, 1), lastWon + 1));
+  d.levelWins = num(raw.levelWins);
   d.muted = raw.muted === true;
   d.t = num(raw.t);
   return d;

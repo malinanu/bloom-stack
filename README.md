@@ -11,6 +11,35 @@ no bundler.
     ($200), the rose greenhouse ($1500) and the peony greenhouse ($2000).
 - **Flower Tower** (the Flappy-style hook): stack flower beds with one tap, in the style of Ketchapp's *Stack*.
   Perfect drops build a combo, and the height pays cash back into the farm.
+- **100 levels** on a Candy Crush-style map. This is the TikTok-style "Level 1 → Level 100" core loop, mixing
+  two kinds of level:
+  - **Farm levels:** mow a field shaped like a heart, star, ring and so on, before the timer runs out. Colour
+    patterns turn each field into a picture.
+  - **Tower levels:** build to a target height, with hearts and twists.
+  - **Stars and coins:** each win earns 1–3 stars and coins for the garden.
+  - **Bosses:** every 10th level is a boss.
+
+## Levels: how they work and how to add more
+
+Levels are **fully procedural**. `levelFor(n)` in `public/src/levels/levels.js` builds level *n* from its
+number with a seeded RNG, so the same level is identical for every player.
+
+- **More levels.** Raise `LEVEL_COUNT`. The map, generator and saves all follow, and levels beyond 100 are
+  already tested up to 300.
+- **Rhythm.** `RHYTHM` sets each block of 10, `F T F T F T T F T BOSS`. Bosses alternate between farm and tower.
+- **Difficulty.** `difficulty(n)` is the curve: it rises through each chapter and eases off after the boss.
+- **New twists.**
+  - Add an entry to `TOWER_TWISTS` or `FARM_TWISTS` with its `from` level. It first appears alone on that
+    level, then gets mixed in with the others.
+  - Implement the twist in `tower/tower.js` (`has('id')`) or in `levels/arena.js` / `farm` params.
+- **New field shapes and patterns.** Add them to `SHAPES` / `PATTERNS` in `levels/shapes.js`.
+- **Chapters.** Names and colours live in `CHAPTERS`. Past 100 they cycle ("Tulip Meadow II").
+- **Guarantees.** `tests/levels.test.mjs` checks every level stays fair:
+  - Determinism, and that each twist is introduced alone.
+  - Farm time limits are at least 1.3× the estimated time needed.
+  - Field and stack sizes, and tower ranges, stay within limits.
+
+Dev shortcuts: `?level=N` opens level N directly, and `window.__bloom.startLevel(n)` does the same from the console.
 
 ## Run it
 
@@ -88,7 +117,9 @@ public/
   src/platform/              local, youtube, crazygames adapters
   src/core/                  economy (all balance numbers), save, input, audio (WebAudio synth), i18n, tween, assets
   src/farm/                  layout, world, flowers (instanced + wind), player, stack, stations, unlocks, guide, models
-  src/tower/                 stackMath (pure), tower (rendering)
+  src/tower/                 stackMath (pure), tower (rendering, level config, hearts, twists)
+  src/levels/                levels + shapes (pure generator), arena (farm levels), flow (banner, HUD, results)
+  src/ui/levelMap.js         the level map screen
   src/fx/, src/ui/           particles, flyers, HUD, floating text
   assets/                    curated KayKit models (CC0) — licenses in assets/licenses/
   vendor/three/              three.js r170 + GLTFLoader, SkeletonUtils

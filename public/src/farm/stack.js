@@ -1,11 +1,11 @@
 // The tower of flower bunches on the gardener's back. It lags behind movement like a spring, so it sways.
 import * as THREE from 'three';
-import { FLOWER_TYPES } from '../core/economy.js';
+import { FLOWER_TYPES, STACK_LIMIT } from '../core/economy.js';
 import { bunchGeometry, makeFlowerMaterial, textTexture } from './models.js';
 import { TYPE_COLOR } from './flowers.js';
 
 const ITEM_H = 0.1;
-const MAX_ITEMS = 160;
+const MAX_ITEMS = STACK_LIMIT;
 const FLY_TIME = 0.32;
 
 const _m = new THREE.Matrix4();
@@ -49,8 +49,9 @@ export class Stack {
   }
 
   get count() { return this.items.length; }
-  get full() { return this.items.length >= this.capacity; }
-  get space() { return Math.max(0, this.capacity - this.items.length); }
+  get limit() { return Math.min(this.capacity, MAX_ITEMS); }
+  get full() { return this.items.length >= this.limit; }
+  get space() { return Math.max(0, this.limit - this.items.length); }
 
   /** Restore saved items instantly (no fly-in). */
   load(types) {
@@ -68,7 +69,7 @@ export class Stack {
   }
 
   push(type, from) {
-    if (this.items.length >= Math.min(this.capacity, MAX_ITEMS)) return false;
+    if (this.items.length >= this.limit) return false;
     this.items.push({ type, t: 0, from: from.clone(), jitter: Math.random() - 0.5 });
     return true;
   }

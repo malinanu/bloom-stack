@@ -1,6 +1,5 @@
 // Flower fields: one InstancedMesh per flower type, a spatial grid for fast harvesting, cut + regrow.
 import * as THREE from 'three';
-import { FIELDS } from './layout.js';
 import { FLOWERS } from '../core/economy.js';
 import { tulipGeometry, roseGeometry, peonyGeometry, makeFlowerMaterial } from './models.js';
 import { ease } from '../core/tween.js';
@@ -33,38 +32,51 @@ function rand(seed) {
   return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
 }
 
+/** Flower slots for the garden's rectangular fields (locked fields stay hidden until bought). */
+export function slotsFromFields(fields, unlocked) {
+  const r = rand(42);
+  const out = [];
+  for (const field of fields) {
+    const [x0, z0, x1, z1] = field.rect;
+    const sp = field.spacing;
+    const locked = field.requires !== null && !unlocked.includes(field.requires);
+    for (let z = z0 + sp / 2; z < z1; z += sp * 0.87) {
+      const row = Math.round((z - z0) / (sp * 0.87));
+      for (let x = x0 + sp / 2 + (row % 2) * sp * 0.5; x < x1; x += sp) {
+        out.push({ type: field.type, x: x + (r() - 0.5) * sp * 0.45, z: z + (r() - 0.5) * sp * 0.45, field: field.id, locked });
+      }
+    }
+  }
+  return out;
+}
+
 export class Flowers {
-  constructor(scene, unlocked) {
-    this.material = makeFlowerMaterial({ wind: 0.09 });
+  /**
+   * @param {THREE.Scene} scene
+   * @param {{ type: string, x: number, z: number, field?: string, locked?: boolean }[]} slotList
+   * @param {{ regrow?: boolean, wind?: number, seed?: number }} opts levels use regrow: false
+   */
+  constructor(scene, slotList, { regrow = true, wind = 0.09, seed = 43 } = {}) {
+    this.scene = scene;
+    this.regrow = regrow;
+    this.material = makeFlowerMaterial({ wind });
     const geos = { tulip: tulipGeometry(), rose: roseGeometry(), peony: peonyGeometry() };
     this.types = {};
     this.grid = new Map();
     this.fieldSlots = new Map(); // field id -> [{ type, i }]
-    const r = rand(42);
+    this.total = 0;
+    this.cutCount = 0;
+    const r = rand(seed);
 
     const slots = { tulip: [], rose: [], peony: [] };
-    for (const field of FIELDS) {
-      const [x0, z0, x1, z1] = field.rect;
-      const list = [];
-      const sp = field.spacing;
-      for (let z = z0 + sp / 2; z < z1; z += sp * 0.87) {
-        const row = Math.round((z - z0) / (sp * 0.87));
-        for (let x = x0 + sp / 2 + (row % 2) * sp * 0.5; x < x1; x += sp) {
-          const s = slots[field.type];
-          const locked = field.requires !== null && !unlocked.includes(field.requires);
-          s.push({
-            x: x + (r() - 0.5) * sp * 0.45,
-            z: z + (r() - 0.5) * sp * 0.45,
-            rot: r() * Math.PI * 2,
-            base: 0.85 + r() * 0.35,
-            state: locked ? LOCKED : GROWN,
-            timer: 0,
-            field: field.id,
-          });
-          list.push({ type: field.type, i: s.length - 1 });
-        }
+    for (const s of slotList) {
+      const list = slots[s.type];
+      list.push({ x: s.x, z: s.z, rot: r() * Math.PI * 2, base: 0.85 + r() * 0.35, state: s.locked ? LOCKED : GROWN, timer: 0, field: s.field });
+      if (!s.locked) this.total++;
+      if (s.field) {
+        if (!this.fieldSlots.has(s.field)) this.fieldSlots.set(s.field, []);
+        this.fieldSlots.get(s.field).push({ type: s.type, i: list.length - 1 });
       }
-      this.fieldSlots.set(field.id, list);
     }
 
     for (const type of Object.keys(slots)) {
@@ -135,8 +147,11 @@ export class Flowers {
           const dz = it.z - z;
           if (dx * dx + dz * dz > r2) continue;
           it.state = CUT;
-          it.timer = FLOWERS[type].regrow * (0.85 + Math.random() * 0.3);
-          t.active.add(i);
+          this.cutCount++;
+          if (this.regrow) {
+            it.timer = FLOWERS[type].regrow * (0.85 + Math.random() * 0.3);
+            t.active.add(i);
+          }
           this.setMatrix(t.mesh, it, i, 0);
           t.dirty = true;
           onCut(type, it.x, it.z);
@@ -147,14 +162,28 @@ export class Flowers {
     return n;
   }
 
-  /** Nearest grown flower of one of `types` (for the guide arrow), or null. */
-  nearestGrown(x, z, types) {
+  /** Flowers still standing (levels: the goal is zero). */
+  remaining() {
+    return this.total - this.cutCount;
+  }
+
+  /** Call `fn(x, z, type)` for every grown flower (used to sparkle the last few in a level). */
+  forEachGrown(fn) {
+    for (const [type, t] of Object.entries(this.types)) {
+      for (const it of t.items) if (it.state === GROWN) fn(it.x, it.z, type);
+    }
+  }
+
+  /**
+   * Nearest grown flower of one of `types` (for the guide arrow), or null.
+   * `step` samples every n-th flower: 7 is plenty to point the way in the big garden; levels use 1.
+   */
+  nearestGrown(x, z, types, step = 7) {
     let best = null;
     let bestD = Infinity;
     for (const type of types) {
       const t = this.types[type];
-      // Sample every 7th flower: plenty for pointing the way, and cheap.
-      for (let i = 0; i < t.items.length; i += 7) {
+      for (let i = 0; i < t.items.length; i += step) {
         const it = t.items[i];
         if (it.state !== GROWN) continue;
         const d = (it.x - x) ** 2 + (it.z - z) ** 2;
@@ -188,5 +217,15 @@ export class Flowers {
         t.dirty = false;
       }
     }
+  }
+
+  /** Remove from the scene and free GPU memory (levels build a new field each time). */
+  dispose() {
+    for (const t of Object.values(this.types)) {
+      this.scene.remove(t.mesh);
+      t.mesh.geometry.dispose();
+      t.mesh.dispose();
+    }
+    this.material.dispose();
   }
 }

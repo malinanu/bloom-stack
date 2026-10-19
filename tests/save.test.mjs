@@ -34,6 +34,21 @@ test('garbage and corrupted data fall back to a fresh save', () => {
   assert.deepEqual(m.paid, {}); // rose already unlocked, field2 not a number
 });
 
+test('level progress: stars are cleaned and the unlocked level follows the stars', () => {
+  const m = migrate({ stars: '32x1', level: 2 });
+  assert.equal(m.stars, '3201');
+  assert.equal(m.level, 5); // one past the last level with stars
+  assert.equal(migrate({}).level, 1);
+  assert.equal(migrate({ level: 12, stars: '3' }).level, 12);
+  assert.equal(migrate({ level: -4 }).level, 1);
+  const s = defaultSave();
+  s.level = 7;
+  s.stars = '332123';
+  const back = deserialize(serialize(s));
+  assert.equal(back.level, 7);
+  assert.equal(back.stars, '332123');
+});
+
 test('v0 prototype saves are migrated', () => {
   assert.equal(migrate({ money: 77 }).cash, 77);
 });

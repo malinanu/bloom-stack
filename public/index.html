@@ -27,6 +27,9 @@
         <div class="pill flower peony" title="Peonies carried"><span class="ico ico-peony" aria-hidden="true"></span><b id="c-peony">0</b></div>
       </div>
       <div class="hud-actions">
+        <button id="btn-levels" class="icon-btn" type="button" aria-label="Level map" title="Levels">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2zM9 4v14M15 6v14"/></svg>
+        </button>
         <button id="btn-sound" class="icon-btn" type="button" aria-label="Sound on" title="Sound (M)">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path class="on" d="M4 9h4l5-4v14l-5-4H4zM16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/><path class="off" d="M4 9h4l5-4v14l-5-4H4zM17 9l5 6M22 9l-5 6"/></svg>
         </button>
@@ -79,12 +82,89 @@
       </div>
     </section>
 
+    <!-- Level HUD (farm levels: progress + timer; tower levels: height + hearts) -->
+    <div id="level-hud" class="level-hud" hidden>
+      <div class="lv-top">
+        <div id="lv-tag" class="lv-tag">LEVEL 1</div>
+        <div class="lv-bar"><div id="lv-fill"></div><span id="lv-text">0%</span></div>
+        <div id="lv-timer" class="lv-timer"></div>
+      </div>
+      <div id="lv-hearts" class="lv-hearts"></div>
+      <button id="lv-exit" class="icon-btn lv-exit" type="button" aria-label="Back to map">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <div id="lv-banner" class="lv-banner" hidden>
+      <div id="lv-boss" class="lv-boss" data-i18n="bossLevel">BOSS LEVEL</div>
+      <div id="lv-num" class="lv-num">LEVEL 1</div>
+      <div id="lv-goal" class="lv-goal">Mow the heart!</div>
+      <div id="lv-new" class="lv-new" hidden></div>
+      <div class="lv-tap" data-i18n="tapToStart">Tap to start</div>
+    </div>
+
+    <section id="lv-win" class="overlay modal" hidden aria-label="Level complete">
+      <div class="card win-card">
+        <p id="lv-win-level" class="lv-small">Level 1</p>
+        <h2 id="lv-win-title">LEVEL COMPLETE!</h2>
+        <div id="lv-stars" class="big-stars"><i></i><i></i><i></i></div>
+        <p class="reward"><b id="lv-reward">+$0</b></p>
+        <button id="lv-double" class="btn btn-ad" type="button"><i class="ad-badge">AD</i><span data-i18n="doubleCoins">2× coins</span></button>
+        <div class="btn-row">
+          <button id="lv-win-map" class="btn btn-green" type="button" data-i18n="map">Map</button>
+          <button id="lv-next" class="btn btn-pink" type="button">Next ▶</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="lv-fail" class="overlay modal" hidden aria-label="Level failed">
+      <div class="card">
+        <h2 id="lv-fail-title">Out of time!</h2>
+        <p id="lv-fail-text" class="lv-small">So close!</p>
+        <button id="lv-continue" class="btn btn-ad" type="button"><i class="ad-badge">AD</i><span>Continue <span id="lv-continue-label">+15s</span></span></button>
+        <div class="btn-row">
+          <button id="lv-fail-map" class="btn btn-green" type="button" data-i18n="map">Map</button>
+          <button id="lv-retry" class="btn btn-pink" type="button" data-i18n="retry">Retry</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Level map -->
+    <section id="map" class="map" hidden aria-label="Level map">
+      <div id="map-scroll" class="map-scroll"><div id="map-path" class="map-path"></div></div>
+      <header class="map-head">
+        <button id="map-back" class="icon-btn" type="button" aria-label="Back to title">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <div class="pill cash"><span class="ico ico-coin" aria-hidden="true"></span><b id="map-cash">0</b></div>
+        <button id="map-garden" class="btn btn-green garden-btn" type="button" data-i18n="myGarden">My Garden</button>
+      </header>
+      <button id="map-play" class="btn btn-pink big map-play" type="button">Play Level 1</button>
+    </section>
+
+    <section id="level-card" class="overlay modal" hidden aria-label="Level details">
+      <div class="card level-card">
+        <p id="lc-chapter" class="lv-small">Tulip Meadow</p>
+        <div id="lc-icon" class="lc-icon"></div>
+        <h2 id="lc-title">LEVEL 1</h2>
+        <p id="lc-goal" class="lc-goal">Mow the heart!</p>
+        <div id="lc-stars" class="big-stars small"></div>
+        <p id="lc-rules" class="lv-small"></p>
+        <p id="lc-twists" class="lc-twists"></p>
+        <p class="reward"><b id="lc-reward"></b></p>
+        <div class="btn-row">
+          <button id="lc-close" class="btn btn-green" type="button">Close</button>
+          <button id="lc-play" class="btn btn-pink" type="button">Play</button>
+        </div>
+      </div>
+    </section>
+
     <section id="title" class="overlay title" hidden>
       <div class="logo"><span class="logo-a">Bloom</span><span class="logo-b">Stack</span></div>
       <p class="tagline" data-i18n="tagline">Mow, stack, sell, grow!</p>
       <div class="title-buttons">
-        <button id="btn-play" class="btn btn-green big" type="button" data-i18n="playFarm">Play</button>
-        <button id="btn-play-tower" class="btn btn-pink" type="button" data-i18n="playTower">Flower Tower</button>
+        <button id="btn-play" class="btn btn-pink big" type="button" data-i18n="playFarm">Play</button>
+        <button id="btn-garden" class="btn btn-green" type="button" data-i18n="myGarden">My Garden</button>
       </div>
     </section>
 

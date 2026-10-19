@@ -25,6 +25,9 @@ export const UNLOCKS = [
   { id: 'peony', price: 2000, requires: 'rose' },
 ];
 
+/** Most flower bunches the back stack can hold (and draw). Bigger level fields need cart runs. */
+export const STACK_LIMIT = 250;
+
 export const BOOST = { multiplier: 2, seconds: 120 };
 export const AD_COOLDOWN_SECONDS = 180;
 
