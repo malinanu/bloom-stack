@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "bloom-stack", "runtimeExecutable": "node", "runtimeArgs": ["scripts/serve.mjs", "public", "8123"], "port": 8123 },
+    { "name": "bloom-stack-youtube-build", "runtimeExecutable": "node", "runtimeArgs": ["scripts/serve.mjs", "dist/youtube", "8124"], "port": 8124 }
+  ]
+}

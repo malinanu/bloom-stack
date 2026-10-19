@@ -1,0 +1,6 @@
+node_modules/
+dist/
+# Source asset zips (KayKit packs): the curated files live in public/assets
+Assets/
+.DS_Store
+Thumbs.db

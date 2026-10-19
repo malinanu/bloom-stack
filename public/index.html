@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Bloom Stack</title>
+  <meta name="description" content="Mow flower fields, stack them sky-high, sell bouquets and grow your garden. Then build the tallest Flower Tower with one tap.">
+  <meta name="theme-color" content="#8cc957">
+  <!-- PLATFORM_SDK: npm run build puts the YouTube Playables / CrazyGames SDK script here, before any game code. -->
+  <link rel="stylesheet" href="./style.css">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three/three.module.min.js", "three/addons/": "./vendor/three/addons/", "platform": "./src/platform/local.js" } }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <canvas id="view"></canvas>
+    <div id="touch" aria-hidden="true"></div>
+    <div id="stick" class="stick" aria-hidden="true"><div class="stick-knob"></div></div>
+    <div id="floaters" aria-hidden="true"></div>
+
+    <header id="hud" class="hud" hidden>
+      <div class="hud-stats" role="status" aria-label="Cash and flowers carried">
+        <div class="pill cash"><span class="ico ico-coin" aria-hidden="true"></span><b id="cash">0</b></div>
+        <div class="pill flower tulip" title="Tulips carried"><span class="ico ico-tulip" aria-hidden="true"></span><b id="c-tulip">0</b></div>
+        <div class="pill flower rose" title="Roses carried"><span class="ico ico-rose" aria-hidden="true"></span><b id="c-rose">0</b></div>
+        <div class="pill flower peony" title="Peonies carried"><span class="ico ico-peony" aria-hidden="true"></span><b id="c-peony">0</b></div>
+      </div>
+      <div class="hud-actions">
+        <button id="btn-sound" class="icon-btn" type="button" aria-label="Sound on" title="Sound (M)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path class="on" d="M4 9h4l5-4v14l-5-4H4zM16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/><path class="off" d="M4 9h4l5-4v14l-5-4H4zM17 9l5 6M22 9l-5 6"/></svg>
+        </button>
+        <button id="btn-pause" class="icon-btn" type="button" aria-label="Pause" title="Pause (P)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>
+        </button>
+      </div>
+      <button id="btn-boost" class="boost" type="button"><i class="ad-badge" aria-hidden="true">AD</i><span>2× cash</span></button>
+    </header>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <section id="panel-upgrades" class="sheet" hidden aria-label="Upgrades">
+      <h2 data-i18n="upgrades">Upgrades</h2>
+      <div class="cards" id="upgrade-cards"></div>
+    </section>
+
+    <section id="panel-tower" class="sheet" hidden aria-label="Flower Tower">
+      <h2 data-i18n="playTower">Flower Tower</h2>
+      <p class="sheet-text">Tap to drop each flower bed. Stack them perfectly to build the tallest tower and earn cash!</p>
+      <p class="sheet-text small" id="tower-best-farm"></p>
+      <button id="btn-tower-go" class="btn btn-pink" type="button">Play</button>
+    </section>
+
+    <div id="tower-hud" class="tower-hud" hidden>
+      <div id="tower-score" class="tower-score">0</div>
+      <div id="tower-combo" class="tower-combo"></div>
+      <div id="tower-hint" class="tower-hint" data-i18n="towerHint">Tap to drop</div>
+      <button id="btn-tower-exit" class="icon-btn tower-exit" type="button" aria-label="Back to farm">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <section id="tower-over" class="overlay modal" hidden aria-label="Tower result">
+      <div class="card">
+        <h2 data-i18n="gameOver">Tower toppled!</h2>
+        <div class="result">
+          <div><span data-i18n="height">Height</span><b id="over-height">0</b></div>
+          <div><span data-i18n="best">Best</span><b id="over-best">0</b></div>
+        </div>
+        <p id="over-newbest" class="newbest" hidden data-i18n="newBest">New best!</p>
+        <p class="reward"><span data-i18n="reward">Reward</span> <b id="over-reward">$0</b></p>
+        <div class="ad-row">
+          <button id="btn-revive" class="btn btn-ad" type="button"><i class="ad-badge">AD</i><span data-i18n="revive">Revive</span></button>
+          <button id="btn-double" class="btn btn-ad" type="button"><i class="ad-badge">AD</i><span data-i18n="double">2× reward</span></button>
+        </div>
+        <div class="btn-row">
+          <button id="btn-again" class="btn btn-pink" type="button">Play again</button>
+          <button id="btn-farm" class="btn btn-green" type="button" data-i18n="backToFarm">Back to farm</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="title" class="overlay title" hidden>
+      <div class="logo"><span class="logo-a">Bloom</span><span class="logo-b">Stack</span></div>
+      <p class="tagline" data-i18n="tagline">Mow, stack, sell, grow!</p>
+      <div class="title-buttons">
+        <button id="btn-play" class="btn btn-green big" type="button" data-i18n="playFarm">Play</button>
+        <button id="btn-play-tower" class="btn btn-pink" type="button" data-i18n="playTower">Flower Tower</button>
+      </div>
+    </section>
+
+    <section id="pause" class="overlay" hidden>
+      <div class="card">
+        <h2 data-i18n="paused">Paused</h2>
+        <button id="btn-resume" class="btn btn-green big" type="button" data-i18n="resume">Resume</button>
+      </div>
+    </section>
+
+    <section id="loading" class="overlay loading">
+      <div class="logo"><span class="logo-a">Bloom</span><span class="logo-b">Stack</span></div>
+      <div class="bar"><div id="load-bar"></div></div>
+      <p data-i18n="loading">Growing flowers…</p>
+    </section>
+  </div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
